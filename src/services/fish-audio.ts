@@ -95,15 +95,17 @@ export async function createVoiceClone(
   description: string
 ): Promise<string> {
   const formData = new FormData();
-  formData.append("name", name);
+  formData.append("type", "tts");
+  formData.append("title", name.slice(0, 64));
   formData.append("description", description);
+  formData.append("train_mode", "fast");
+  formData.append("visibility", "private");
   formData.append(
-    "audio",
-    new Blob([new Uint8Array(audioBuffer)], { type: "audio/wav" }),
-    "reference.wav"
+    "voices",
+    new Blob([new Uint8Array(audioBuffer)], { type: "application/octet-stream" })
   );
 
-  const response = await fetch(`${BASE_URL}/voice/clone`, {
+  const response = await fetch("https://api.fish.audio/model", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.fishAudioApiKey}`,
@@ -118,8 +120,8 @@ export async function createVoiceClone(
     );
   }
 
-  const data = (await response.json()) as { id: string };
-  return data.id;
+  const data = (await response.json()) as { _id: string };
+  return data._id;
 }
 
 /**
