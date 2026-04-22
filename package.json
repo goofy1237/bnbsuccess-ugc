@@ -1,0 +1,34 @@
+{
+  "name": "bnb-ugc-pipeline",
+  "version": "1.0.0",
+  "description": "BNB Success AI-Powered UGC Video Ad Pipeline",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "pipeline": "tsx src/pipeline/orchestrator.ts",
+    "stage:ideation": "tsx src/pipeline/stage1-ideation.ts",
+    "stage:script": "tsx src/pipeline/stage2-script.ts",
+    "stage:voice": "tsx src/pipeline/stage3-voice.ts",
+    "stage:lipsync": "tsx src/pipeline/stage4-lipsync.ts",
+    "stage:broll": "tsx src/pipeline/stage5-broll.ts",
+    "stage:assembly": "tsx src/pipeline/stage6-assembly.ts",
+    "db:migrate": "supabase db push",
+    "db:reset": "supabase db reset"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "@fal-ai/client": "^1.2.0",
+    "@supabase/supabase-js": "^2.49.0",
+    "dotenv": "^16.5.0",
+    "openai": "^4.85.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}

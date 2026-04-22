@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.env
+.env.local
+*.mp3
+*.mp4
+*.wav
+*.mov
+assets/face-reference/*
+!assets/face-reference/.gitkeep
+assets/audio/*
+!assets/audio/.gitkeep
+assets/video/*
+!assets/video/.gitkeep
+assets/broll/*
+!assets/broll/.gitkeep
+assets/exports/*
+!assets/exports/.gitkeep
+.DS_Store
+
+# Training corpus: keep README.md and metadata.csv, ignore the MP4s
+training-corpus/*.mp4

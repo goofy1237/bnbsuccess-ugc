@@ -1,0 +1,269 @@
+{
+  "name": "BNB Success - AI UGC Video Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "trigger-schedule",
+      "name": "Daily 9am AEST Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ugc-pipeline-start",
+        "responseMode": "onReceived"
+      },
+      "id": "trigger-webhook",
+      "name": "Manual Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 500]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/competitor_ads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_ANON_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}" }
+          ]
+        },
+        "options": {
+          "response": { "response": { "fullResponse": true } }
+        }
+      },
+      "id": "ideation-fetch",
+      "name": "[1] Fetch Competitor Ads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"model\": \"claude-opus-4-6-20250219\",\n  \"max_tokens\": 4000,\n  \"system\": \"You are a UGC ad scriptwriter for BNB Success, an Australian short-term rental mentorship business. Write scripts in first-person, conversational Australian English. Include Fish Audio emotion tags inline: [excited], [serious], [warm], [whisper], [laugh], [confident], [casual], [sigh]. Structure: Hook (0-3s) > Problem (3-8s) > Pivot (8-12s) > Proof (12-22s) > CTA (22-30s). Target: 120-150 words per minute.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate 5 script variations for angle: '{{ $json.angle }}'. Hook style: mixed. Target: 30 seconds. Return a JSON array.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "script-generate",
+      "name": "[2] Generate Scripts (Claude Opus)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL}}/rest/v1/scripts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{$env.SUPABASE_ANON_KEY}}" },
+            { "name": "Authorization", "value": "Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "requestMethod": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.scripts) }}"
+      },
+      "id": "script-save",
+      "name": "[2b] Save Scripts to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"text\": \"New UGC scripts ready for approval! Check Supabase dashboard.\"\n}"
+      },
+      "id": "script-notify",
+      "name": "[2c] Slack: Scripts Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 600]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "script-approved",
+        "responseMode": "onReceived"
+      },
+      "id": "approval-webhook",
+      "name": "Script Approval Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1300, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.fish.audio/v1/tts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.FISH_AUDIO_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "model", "value": "s2-pro" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"text\": \"{{ $json.script_tagged }}\",\n  \"reference_id\": \"{{$env.FISH_AUDIO_VOICE_ID}}\",\n  \"temperature\": 0.7,\n  \"top_p\": 0.7,\n  \"prosody\": { \"speed\": 1.0, \"volume\": 0, \"normalize_loudness\": true },\n  \"format\": \"mp3\",\n  \"sample_rate\": 44100,\n  \"mp3_bitrate\": 128,\n  \"latency\": \"normal\"\n}",
+        "options": {
+          "response": { "response": { "responseFormat": "file" } }
+        }
+      },
+      "id": "voice-generate",
+      "name": "[3] Fish Audio TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1600, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://queue.fal.run/fal-ai/kling-video/lipsync/audio-to-video",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Key {{$env.FAL_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"video_url\": \"{{$env.FACE_REFERENCE_URL}}\",\n  \"audio_url\": \"{{ $json.audio_url }}\"\n}",
+        "options": {}
+      },
+      "id": "lipsync-submit",
+      "name": "[4] Kling Lip Sync (fal.ai)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1900, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://queue.fal.run/fal-ai/seedance",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Key {{$env.FAL_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"prompt\": \"{{ $json.broll_prompt }}\",\n  \"duration\": 5\n}",
+        "options": {}
+      },
+      "id": "broll-generate",
+      "name": "[5] Seedance B-Roll (fal.ai)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1900, 500]
+    },
+    {
+      "parameters": {
+        "command": "cd /Users/bnbsuccess/Projects/bnb-ugc-pipeline && npx tsx src/pipeline/stage6-assembly.ts"
+      },
+      "id": "assembly-run",
+      "name": "[6] ffmpeg Assembly",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [2200, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"text\": \"New UGC ad creative complete! Check Supabase storage for the finished video.\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": { \"type\": \"plain_text\", \"text\": \"New Ad Creative Complete\" }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Angle:* {{ $json.angle }}\\n*Duration:* {{ $json.duration }}s\\n*Format:* 9:16 + 1:1 + 16:9\"\n      }\n    }\n  ]\n}"
+      },
+      "id": "delivery-notify",
+      "name": "[7] Slack: Ad Delivered",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2500, 400]
+    }
+  ],
+  "connections": {
+    "Daily 9am AEST Trigger": {
+      "main": [[{ "node": "[1] Fetch Competitor Ads", "type": "main", "index": 0 }]]
+    },
+    "Manual Webhook Trigger": {
+      "main": [[{ "node": "[1] Fetch Competitor Ads", "type": "main", "index": 0 }]]
+    },
+    "[1] Fetch Competitor Ads": {
+      "main": [[{ "node": "[2] Generate Scripts (Claude Opus)", "type": "main", "index": 0 }]]
+    },
+    "[2] Generate Scripts (Claude Opus)": {
+      "main": [
+        [
+          { "node": "[2b] Save Scripts to Supabase", "type": "main", "index": 0 },
+          { "node": "[2c] Slack: Scripts Ready", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "[2b] Save Scripts to Supabase": {
+      "main": [[{ "node": "Script Approval Webhook", "type": "main", "index": 0 }]]
+    },
+    "Script Approval Webhook": {
+      "main": [[{ "node": "[3] Fish Audio TTS", "type": "main", "index": 0 }]]
+    },
+    "[3] Fish Audio TTS": {
+      "main": [
+        [
+          { "node": "[4] Kling Lip Sync (fal.ai)", "type": "main", "index": 0 },
+          { "node": "[5] Seedance B-Roll (fal.ai)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "[4] Kling Lip Sync (fal.ai)": {
+      "main": [[{ "node": "[6] ffmpeg Assembly", "type": "main", "index": 0 }]]
+    },
+    "[5] Seedance B-Roll (fal.ai)": {
+      "main": [[{ "node": "[6] ffmpeg Assembly", "type": "main", "index": 0 }]]
+    },
+    "[6] ffmpeg Assembly": {
+      "main": [[{ "node": "[7] Slack: Ad Delivered", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Australia/Melbourne"
+  },
+  "tags": [
+    { "name": "ugc-pipeline" },
+    { "name": "bnb-success" }
+  ]
+}
