@@ -102,7 +102,8 @@ export async function createVoiceClone(
   formData.append("visibility", "private");
   formData.append(
     "voices",
-    new Blob([new Uint8Array(audioBuffer)], { type: "application/octet-stream" })
+    new Blob([new Uint8Array(audioBuffer)], { type: "application/octet-stream" }),
+    "reference.mp3"
   );
 
   const response = await fetch("https://api.fish.audio/model", {

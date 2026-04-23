@@ -1,6 +1,32 @@
-import { readFile } from "fs/promises";
-import { basename, extname } from "path";
+import { readFile, writeFile, mkdir } from "fs/promises";
+import { existsSync } from "fs";
+import { basename, extname, dirname, join } from "path";
 import { createVoiceClone } from "../services/fish-audio.js";
+
+const LIBRARY_PATH = join(process.cwd(), "assets", "voice-library.json");
+
+interface VoiceLibraryEntry {
+  id: string;
+  title: string;
+  source: string;
+  created_at: string;
+}
+
+interface VoiceLibrary {
+  voices: VoiceLibraryEntry[];
+}
+
+async function appendToLibrary(entry: VoiceLibraryEntry): Promise<void> {
+  await mkdir(dirname(LIBRARY_PATH), { recursive: true });
+  let library: VoiceLibrary = { voices: [] };
+  if (existsSync(LIBRARY_PATH)) {
+    const existing = await readFile(LIBRARY_PATH, "utf-8");
+    library = JSON.parse(existing) as VoiceLibrary;
+    if (!Array.isArray(library.voices)) library.voices = [];
+  }
+  library.voices.push(entry);
+  await writeFile(LIBRARY_PATH, JSON.stringify(library, null, 2) + "\n");
+}
 
 async function main() {
   const audioPath = process.argv[2];
@@ -16,6 +42,14 @@ async function main() {
     title,
     `Voice clone from ${basename(audioPath)}`
   );
+
+  await appendToLibrary({
+    id: voiceId,
+    title,
+    source: audioPath,
+    created_at: new Date().toISOString(),
+  });
+
   console.log(voiceId);
 }
 
